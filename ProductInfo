@@ -1,0 +1,18 @@
+package shopping.cart;
+
+import java.math.BigDecimal;
+
+public record ProductInfo(
+    String name,
+    BigDecimal price,
+    int quantity,
+    BigDecimal discountPercent
+) {
+    @Override
+    public String toString() {
+        return String.format(
+            "Product{name='%s', price=%s, quantity=%d, discount=%s%%}",
+            name, price, quantity, discountPercent
+        );
+    }
+}
