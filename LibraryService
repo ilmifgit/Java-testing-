@@ -1,0 +1,48 @@
+public class LibraryService {
+    private final BookRepository bookRepository;
+    private final StudentRepository studentRepository;
+    private final NotificationService notificationService;
+    
+    public LibraryService(
+            BookRepository bookRepository,
+            StudentRepository studentRepository,
+            NotificationService notificationService) {
+        this.bookRepository = bookRepository;
+        this.studentRepository = studentRepository;
+        this.notificationService = notificationService;
+    }
+    
+    public BorrowResult borrowBook(int studentId, int bookId) {
+        Student student = studentRepository.getStudentById(studentId);
+        if (student == null) {
+            String errorMessage = String.format("Студент с ID %d не найден", studentId);
+            notificationService.sendWarningNotification(errorMessage);
+            return BorrowResult.failure(errorMessage);
+        }
+        
+        Book book = bookRepository.getBookById(bookId);
+        if (book == null) {
+            String errorMessage = String.format("Книга с ID %d не найдена", bookId);
+            notificationService.sendWarningNotification(errorMessage);
+            return BorrowResult.failure(errorMessage);
+        }
+        
+        if (!book.isAvailable()) {
+            String errorMessage = String.format("Книга '%s' уже выдана другому читателю", book.getTitle());
+            notificationService.sendWarningNotification(errorMessage);
+            return BorrowResult.failure(errorMessage);
+        }
+        
+        book.setAvailable(false);
+        bookRepository.updateBook(book);
+        
+        String successMessage = String.format(
+            "Книга '%s' успешно выдана студенту %s", 
+            book.getTitle(), 
+            student.getName()
+        );
+        notificationService.sendSuccessNotification(student.getName(), book.getTitle());
+        
+        return BorrowResult.success(successMessage);
+    }
+}
