@@ -1,0 +1,19 @@
+package shopping.cart;
+
+public class ProductNotFoundException extends RuntimeException {
+    public ProductNotFoundException(String message) {
+        super(message);
+    }
+}
+
+public class NegativeDiscountException extends RuntimeException {
+    public NegativeDiscountException(String message) {
+        super(message);
+    }
+}
+
+public class ExcessiveDiscountException extends RuntimeException {
+    public ExcessiveDiscountException(String message) {
+        super(message);
+    }
+}
