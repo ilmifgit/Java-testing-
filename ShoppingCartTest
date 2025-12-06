@@ -1,0 +1,373 @@
+package shopping.cart;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class ShoppingCartTest {
+    
+    private ShoppingCart cart;
+    
+    @BeforeEach
+    void setUp() {
+        cart = new ShoppingCart();
+    }
+    
+    @Test
+    void addProduct_SingleProduct_ProductAdded() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50));
+        
+        assertEquals(1, cart.getProductCount());
+        assertEquals(1, cart.getTotalItems());
+    }
+    
+    @Test
+    void addProduct_WithQuantity_ProductAddedWithCorrectQuantity() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50), 3);
+        
+        assertEquals(1, cart.getProductCount());
+        assertEquals(3, cart.getTotalItems());
+    }
+    
+    @Test
+    void addProduct_ExistingProduct_QuantityIncreased() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50), 2);
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50), 3);
+        
+        assertEquals(1, cart.getProductCount());
+        assertEquals(5, cart.getTotalItems());
+    }
+    
+    @Test
+    void addProduct_DifferentProducts_AllAdded() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50), 2);
+        cart.addProduct("Banana", BigDecimal.valueOf(0.99), 3);
+        
+        assertEquals(2, cart.getProductCount());
+        assertEquals(5, cart.getTotalItems());
+    }
+    
+    @Test
+    void addProduct_InvalidQuantity_ThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            cart.addProduct("Apple", BigDecimal.valueOf(1.50), 0);
+        });
+        
+        assertThrows(IllegalArgumentException.class, () -> {
+            cart.addProduct("Apple", BigDecimal.valueOf(1.50), -1);
+        });
+    }
+    
+    @ParameterizedTest
+    @CsvSource({
+        "Apple, 1.50, 1",
+        "Apple, 1.50, 2",
+        "Apple, 1.50, 5"
+    })
+    void removeProduct_ValidQuantity_QuantityDecreasedOrRemoved(
+            String productName, BigDecimal price, int quantity) {
+        cart.addProduct(productName, price, quantity);
+        cart.removeProduct(productName);
+        
+        if (quantity == 1) {
+            assertEquals(0, cart.getProductCount());
+        } else {
+            assertEquals(quantity - 1, cart.getTotalItems());
+        }
+    }
+    
+    @Test
+    void removeProduct_WithSpecificQuantity_QuantityDecreased() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50), 5);
+        cart.removeProduct("Apple", 3);
+        
+        assertEquals(1, cart.getProductCount());
+        assertEquals(2, cart.getTotalItems());
+    }
+    
+    @Test
+    void removeProduct_QuantityBecomesZero_ProductRemoved() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50), 3);
+        cart.removeProduct("Apple", 3);
+        
+        assertEquals(0, cart.getProductCount());
+        assertEquals(0, cart.getTotalItems());
+    }
+    
+    @Test
+    void removeProduct_NonExistentProduct_ThrowsException() {
+        assertThrows(ProductNotFoundException.class, () -> {
+            cart.removeProduct("NonExistent");
+        });
+    }
+    
+    @Test
+    void removeProduct_InvalidQuantity_ThrowsException() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50));
+        
+        assertThrows(IllegalArgumentException.class, () -> {
+            cart.removeProduct("Apple", 0);
+        });
+        
+        assertThrows(IllegalArgumentException.class, () -> {
+            cart.removeProduct("Apple", -1);
+        });
+    }
+    
+    @Test
+    void clearCart_CartWithProducts_AllProductsRemoved() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50), 2);
+        cart.addProduct("Banana", BigDecimal.valueOf(0.99), 3);
+        
+        cart.clearCart();
+        
+        assertEquals(0, cart.getProductCount());
+        assertEquals(0, cart.getTotalItems());
+        assertEquals(BigDecimal.ZERO, cart.getTotalPrice());
+    }
+    
+    @Test
+    void clearCart_EmptyCart_NoChanges() {
+        cart.clearCart();
+        
+        assertEquals(0, cart.getProductCount());
+        assertEquals(0, cart.getTotalItems());
+    }
+    
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "10", "50", "99.99", "100"})
+    void applyDiscount_ValidDiscount_DiscountApplied(String discount) {
+        cart.addProduct("Apple", BigDecimal.valueOf(2.00), 2);
+        cart.applyDiscount("Apple", new BigDecimal(discount));
+        
+        Product product = cart.getProduct("Apple").orElseThrow();
+        assertEquals(new BigDecimal(discount), product.discountPercent());
+    }
+    
+    @Test
+    void applyDiscount_NegativeDiscount_ThrowsException() {
+        cart.addProduct("Apple", BigDecimal.valueOf(2.00));
+        
+        assertThrows(NegativeDiscountException.class, () -> {
+            cart.applyDiscount("Apple", BigDecimal.valueOf(-1));
+        });
+        
+        assertThrows(NegativeDiscountException.class, () -> {
+            cart.applyDiscount("Apple", BigDecimal.valueOf(-0.01));
+        });
+    }
+    
+    @Test
+    void applyDiscount_DiscountOver100_ThrowsException() {
+        cart.addProduct("Apple", BigDecimal.valueOf(2.00));
+        
+        assertThrows(ExcessiveDiscountException.class, () -> {
+            cart.applyDiscount("Apple", BigDecimal.valueOf(100.01));
+        });
+        
+        assertThrows(ExcessiveDiscountException.class, () -> {
+            cart.applyDiscount("Apple", BigDecimal.valueOf(200));
+        });
+    }
+    
+    @Test
+    void applyDiscount_NonExistentProduct_ThrowsException() {
+        assertThrows(ProductNotFoundException.class, () -> {
+            cart.applyDiscount("NonExistent", BigDecimal.valueOf(10));
+        });
+    }
+    
+    @Test
+    void applyDiscount_DiscountUpdatesProductCorrectly() {
+        cart.addProduct("Apple", BigDecimal.valueOf(10.00), 2);
+        cart.applyDiscount("Apple", BigDecimal.valueOf(20));
+        
+        Product product = cart.getProduct("Apple").orElseThrow();
+        assertEquals(BigDecimal.valueOf(20), product.discountPercent());
+        assertEquals(BigDecimal.valueOf(16.00), product.getTotalPrice());
+    }
+    
+    @Test
+    void getTotalPrice_NoDiscounts_CorrectTotal() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50), 2);
+        cart.addProduct("Banana", BigDecimal.valueOf(0.99), 3);
+        
+        BigDecimal expectedTotal = BigDecimal.valueOf(1.50 * 2 + 0.99 * 3)
+            .setScale(2);
+        assertEquals(expectedTotal, cart.getTotalPrice());
+    }
+    
+    @Test
+    void getTotalPrice_WithDiscounts_CorrectTotal() {
+        cart.addProduct("Apple", BigDecimal.valueOf(10.00), 2);
+        cart.addProduct("Banana", BigDecimal.valueOf(5.00), 3);
+        
+        cart.applyDiscount("Apple", BigDecimal.valueOf(20));
+        cart.applyDiscount("Banana", BigDecimal.valueOf(10));
+        
+        BigDecimal expectedTotal = BigDecimal.valueOf(16.00 + 13.50)
+            .setScale(2);
+        assertEquals(expectedTotal, cart.getTotalPrice());
+    }
+    
+    @Test
+    void getTotalDiscount_NoDiscounts_Zero() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50), 2);
+        
+        assertEquals(BigDecimal.ZERO.setScale(2), cart.getTotalDiscount());
+    }
+    
+    @Test
+    void getTotalDiscount_WithDiscounts_CorrectDiscount() {
+        cart.addProduct("Apple", BigDecimal.valueOf(10.00), 2);
+        cart.addProduct("Banana", BigDecimal.valueOf(5.00), 3);
+        
+        cart.applyDiscount("Apple", BigDecimal.valueOf(20));
+        cart.applyDiscount("Banana", BigDecimal.valueOf(10));
+        
+        BigDecimal expectedDiscount = BigDecimal.valueOf(4.00 + 1.50)
+            .setScale(2);
+        assertEquals(expectedDiscount, cart.getTotalDiscount());
+    }
+    
+    @Test
+    void getTotalDiscount_100PercentDiscount_FullDiscount() {
+        cart.addProduct("Apple", BigDecimal.valueOf(10.00), 2);
+        cart.applyDiscount("Apple", BigDecimal.valueOf(100));
+        
+        BigDecimal expectedDiscount = BigDecimal.valueOf(20.00)
+            .setScale(2);
+        assertEquals(expectedDiscount, cart.getTotalDiscount());
+        assertEquals(BigDecimal.ZERO.setScale(2), cart.getTotalPrice());
+    }
+    
+    @Test
+    void getCartInfo_EmptyCart_EmptyList() {
+        List<ProductInfo> info = cart.getCartInfo();
+        
+        assertTrue(info.isEmpty());
+    }
+    
+    @Test
+    void getCartInfo_WithProducts_CompleteInfo() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50), 2);
+        cart.addProduct("Banana", BigDecimal.valueOf(0.99), 3);
+        
+        cart.applyDiscount("Apple", BigDecimal.valueOf(10));
+        
+        List<ProductInfo> info = cart.getCartInfo();
+        
+        assertEquals(2, info.size());
+        
+        ProductInfo appleInfo = info.stream()
+            .filter(p -> p.name().equals("Apple"))
+            .findFirst()
+            .orElseThrow();
+        
+        assertEquals("Apple", appleInfo.name());
+        assertEquals(BigDecimal.valueOf(1.50), appleInfo.price());
+        assertEquals(2, appleInfo.quantity());
+        assertEquals(BigDecimal.valueOf(10), appleInfo.discountPercent());
+    }
+    
+    @Test
+    void complexScenario_MultipleOperations_CorrectState() {
+        cart.addProduct("Laptop", BigDecimal.valueOf(999.99));
+        cart.addProduct("Mouse", BigDecimal.valueOf(49.99), 2);
+        cart.addProduct("Keyboard", BigDecimal.valueOf(79.99));
+        
+        assertEquals(3, cart.getProductCount());
+        assertEquals(4, cart.getTotalItems());
+        
+        cart.applyDiscount("Laptop", BigDecimal.valueOf(15));
+        cart.applyDiscount("Mouse", BigDecimal.valueOf(5));
+        
+        cart.removeProduct("Keyboard");
+        
+        assertEquals(2, cart.getProductCount());
+        assertEquals(3, cart.getTotalItems());
+        
+        cart.addProduct("Mouse", BigDecimal.valueOf(49.99), 1);
+        
+        assertEquals(2, cart.getProductCount());
+        assertEquals(4, cart.getTotalItems());
+        
+        BigDecimal laptopExpected = BigDecimal.valueOf(999.99 * 0.85);
+        BigDecimal mouseExpected = BigDecimal.valueOf(49.99 * 0.95 * 3);
+        BigDecimal expectedTotal = laptopExpected.add(mouseExpected).setScale(2);
+        
+        assertEquals(expectedTotal, cart.getTotalPrice());
+    }
+    
+    @Test
+    void getProduct_ExistingProduct_ReturnsProduct() {
+        cart.addProduct("Apple", BigDecimal.valueOf(1.50), 2);
+        
+        assertTrue(cart.getProduct("Apple").isPresent());
+        
+        Product product = cart.getProduct("Apple").orElseThrow();
+        assertEquals("Apple", product.name());
+        assertEquals(2, product.quantity());
+    }
+    
+    @Test
+    void getProduct_NonExistentProduct_ReturnsEmpty() {
+        assertTrue(cart.getProduct("NonExistent").isEmpty());
+    }
+    
+    @Test
+    void productConstructor_InvalidParameters_ThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new Product("", BigDecimal.valueOf(10));
+        });
+        
+        assertThrows(IllegalArgumentException.class, () -> {
+            new Product(null, BigDecimal.valueOf(10));
+        });
+        
+        assertThrows(IllegalArgumentException.class, () -> {
+            new Product("Test", BigDecimal.valueOf(-1));
+        });
+        
+        assertThrows(IllegalArgumentException.class, () -> {
+            new Product("Test", BigDecimal.valueOf(10), 0);
+        });
+        
+        assertThrows(IllegalArgumentException.class, () -> {
+            new Product("Test", BigDecimal.valueOf(10), 1, BigDecimal.valueOf(-1));
+        });
+        
+        assertThrows(IllegalArgumentException.class, () -> {
+            new Product("Test", BigDecimal.valueOf(10), 1, BigDecimal.valueOf(101));
+        });
+    }
+    
+    @Test
+    void productMethods_DiscountedPrice_CalculatedCorrectly() {
+        Product product = new Product("Test", BigDecimal.valueOf(100), 2, BigDecimal.valueOf(20));
+        
+        assertEquals(BigDecimal.valueOf(80.00), product.getDiscountedPrice());
+        assertEquals(BigDecimal.valueOf(160.00), product.getTotalPrice());
+        assertEquals(BigDecimal.valueOf(40.00), product.getDiscountAmount());
+    }
+    
+    @Test
+    void productMethods_WithMethods_CreateNewInstances() {
+        Product original = new Product("Test", BigDecimal.valueOf(100), 2, BigDecimal.valueOf(10));
+        
+        Product withQuantity = original.withQuantity(5);
+        assertEquals(5, withQuantity.quantity());
+        assertEquals(2, original.quantity());
+        
+        Product withDiscount = original.withDiscount(BigDecimal.valueOf(20));
+        assertEquals(BigDecimal.valueOf(20), withDiscount.discountPercent());
+        assertEquals(BigDecimal.valueOf(10), original.discountPercent());
+    }
+}
