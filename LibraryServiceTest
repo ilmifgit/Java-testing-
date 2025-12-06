@@ -1,0 +1,171 @@
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class LibraryServiceTest {
+    
+    @Mock
+    private BookRepository bookRepository;
+    
+    @Mock
+    private StudentRepository studentRepository;
+    
+    @Mock
+    private NotificationService notificationService;
+    
+    @InjectMocks
+    private LibraryService libraryService;
+    
+    @Test
+    void borrowBook_StudentNotFound_ReturnsFailure() {
+        int studentId = 1;
+        int bookId = 1;
+        
+        when(studentRepository.getStudentById(studentId)).thenReturn(null);
+        
+        BorrowResult result = libraryService.borrowBook(studentId, bookId);
+        
+        assertFalse(result.isSuccess());
+        assertEquals("Студент с ID 1 не найден", result.getMessage());
+        verify(notificationService).sendWarningNotification("Студент с ID 1 не найден");
+        verifyNoInteractions(bookRepository);
+        verify(notificationService, never()).sendSuccessNotification(anyString(), anyString());
+    }
+    
+    @Test
+    void borrowBook_BookNotFound_ReturnsFailure() {
+        int studentId = 1;
+        int bookId = 1;
+        Student student = new Student(1, "Иван Иванов", 10);
+        
+        when(studentRepository.getStudentById(studentId)).thenReturn(student);
+        when(bookRepository.getBookById(bookId)).thenReturn(null);
+        
+        BorrowResult result = libraryService.borrowBook(studentId, bookId);
+        
+        assertFalse(result.isSuccess());
+        assertEquals("Книга с ID 1 не найдена", result.getMessage());
+        verify(notificationService).sendWarningNotification("Книга с ID 1 не найдена");
+        verify(bookRepository, never()).updateBook(any());
+        verify(notificationService, never()).sendSuccessNotification(anyString(), anyString());
+    }
+    
+    @Test
+    void borrowBook_BookNotAvailable_ReturnsFailure() {
+        int studentId = 1;
+        int bookId = 1;
+        Student student = new Student(1, "Иван Иванов", 10);
+        Book book = new Book(1, "Война и мир", "Л. Толстой", false);
+        
+        when(studentRepository.getStudentById(studentId)).thenReturn(student);
+        when(bookRepository.getBookById(bookId)).thenReturn(book);
+        
+        BorrowResult result = libraryService.borrowBook(studentId, bookId);
+        
+        assertFalse(result.isSuccess());
+        assertEquals("Книга 'Война и мир' уже выдана другому читателю", result.getMessage());
+        verify(notificationService).sendWarningNotification("Книга 'Война и мир' уже выдана другому читателю");
+        verify(bookRepository, never()).updateBook(any());
+        verify(notificationService, never()).sendSuccessNotification(anyString(), anyString());
+    }
+    
+    @Test
+    void borrowBook_ValidRequest_ReturnsSuccess() {
+        int studentId = 1;
+        int bookId = 1;
+        Student student = new Student(1, "Иван Иванов", 10);
+        Book book = new Book(1, "Война и мир", "Л. Толстой", true);
+        
+        when(studentRepository.getStudentById(studentId)).thenReturn(student);
+        when(bookRepository.getBookById(bookId)).thenReturn(book);
+        
+        BorrowResult result = libraryService.borrowBook(studentId, bookId);
+        
+        assertTrue(result.isSuccess());
+        assertEquals("Книга 'Война и мир' успешно выдана студенту Иван Иванов", result.getMessage());
+        assertFalse(book.isAvailable());
+        verify(bookRepository).updateBook(book);
+        verify(notificationService).sendSuccessNotification("Иван Иванов", "Война и мир");
+        verify(notificationService, never()).sendWarningNotification(anyString());
+    }
+    
+    @Test
+    void borrowBook_ValidRequest_UpdatesBookAvailability() {
+        int studentId = 1;
+        int bookId = 1;
+        Student student = new Student(1, "Иван Иванов", 10);
+        Book book = new Book(1, "Война и мир", "Л. Толстой", true);
+        
+        when(studentRepository.getStudentById(studentId)).thenReturn(student);
+        when(bookRepository.getBookById(bookId)).thenReturn(book);
+        
+        libraryService.borrowBook(studentId, bookId);
+        
+        assertFalse(book.isAvailable());
+        verify(bookRepository).updateBook(book);
+    }
+    
+    @Test
+    void borrowBook_MultipleCalls_HandlesCorrectly() {
+        int studentId = 1;
+        int bookId = 1;
+        Student student = new Student(1, "Иван Иванов", 10);
+        Book book = new Book(1, "Война и мир", "Л. Толстой", true);
+        
+        when(studentRepository.getStudentById(studentId)).thenReturn(student);
+        when(bookRepository.getBookById(bookId)).thenReturn(book);
+        
+        BorrowResult firstResult = libraryService.borrowBook(studentId, bookId);
+        assertTrue(firstResult.isSuccess());
+        
+        Book unavailableBook = new Book(1, "Война и мир", "Л. Толстой", false);
+        when(bookRepository.getBookById(bookId)).thenReturn(unavailableBook);
+        
+        BorrowResult secondResult = libraryService.borrowBook(studentId, bookId);
+        assertFalse(secondResult.isSuccess());
+        assertEquals("Книга 'Война и мир' уже выдана другому читателю", secondResult.getMessage());
+    }
+    
+    @Test
+    void borrowBook_DifferentStudents_SuccessForEach() {
+        Student student1 = new Student(1, "Иван Иванов", 10);
+        Student student2 = new Student(2, "Петр Петров", 11);
+        Book book1 = new Book(1, "Война и мир", "Л. Толстой", true);
+        Book book2 = new Book(2, "Преступление и наказание", "Ф. Достоевский", true);
+        
+        when(studentRepository.getStudentById(1)).thenReturn(student1);
+        when(bookRepository.getBookById(1)).thenReturn(book1);
+        
+        BorrowResult result1 = libraryService.borrowBook(1, 1);
+        assertTrue(result1.isSuccess());
+        
+        when(studentRepository.getStudentById(2)).thenReturn(student2);
+        when(bookRepository.getBookById(2)).thenReturn(book2);
+        
+        BorrowResult result2 = libraryService.borrowBook(2, 2);
+        assertTrue(result2.isSuccess());
+        
+        verify(bookRepository, times(2)).updateBook(any());
+        verify(notificationService, times(2)).sendSuccessNotification(anyString(), anyString());
+    }
+    
+    @Test
+    void borrowBook_EdgeCase_NegativeIds() {
+        int studentId = -1;
+        int bookId = -1;
+        
+        when(studentRepository.getStudentById(studentId)).thenReturn(null);
+        
+        BorrowResult result = libraryService.borrowBook(studentId, bookId);
+        
+        assertFalse(result.isSuccess());
+        assertEquals("Студент с ID -1 не найден", result.getMessage());
+    }
+}
