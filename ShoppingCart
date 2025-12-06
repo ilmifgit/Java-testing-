@@ -1,0 +1,117 @@
+package shopping.cart;
+
+import java.math.BigDecimal;
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class ShoppingCart {
+    
+    private final Map<String, Product> products = new HashMap<>();
+    
+    public void addProduct(String name, BigDecimal price) {
+        addProduct(name, price, 1);
+    }
+    
+    public void addProduct(String name, BigDecimal price, int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
+        
+        products.compute(name, (key, existingProduct) -> {
+            if (existingProduct == null) {
+                return new Product(name, price, quantity);
+            } else {
+                int newQuantity = existingProduct.quantity() + quantity;
+                return new Product(
+                    name,
+                    existingProduct.price(),
+                    newQuantity,
+                    existingProduct.discountPercent()
+                );
+            }
+        });
+    }
+    
+    public void removeProduct(String name) {
+        removeProduct(name, 1);
+    }
+    
+    public void removeProduct(String name, int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
+        
+        Product existingProduct = products.get(name);
+        if (existingProduct == null) {
+            throw new ProductNotFoundException("Product '" + name + "' not found in cart");
+        }
+        
+        int newQuantity = existingProduct.quantity() - quantity;
+        
+        if (newQuantity <= 0) {
+            products.remove(name);
+        } else {
+            products.put(name, existingProduct.withQuantity(newQuantity));
+        }
+    }
+    
+    public void clearCart() {
+        products.clear();
+    }
+    
+    public void applyDiscount(String name, BigDecimal discountPercent) {
+        if (discountPercent.compareTo(BigDecimal.ZERO) < 0) {
+            throw new NegativeDiscountException("Discount cannot be negative: " + discountPercent + "%");
+        }
+        
+        if (discountPercent.compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw new ExcessiveDiscountException("Discount cannot exceed 100%: " + discountPercent + "%");
+        }
+        
+        Product existingProduct = products.get(name);
+        if (existingProduct == null) {
+            throw new ProductNotFoundException("Product '" + name + "' not found in cart");
+        }
+        
+        products.put(name, existingProduct.withDiscount(discountPercent));
+    }
+    
+    public BigDecimal getTotalPrice() {
+        return products.values().stream()
+            .map(Product::getTotalPrice)
+            .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .setScale(2, RoundingMode.HALF_UP);
+    }
+    
+    public BigDecimal getTotalDiscount() {
+        return products.values().stream()
+            .map(Product::getDiscountAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .setScale(2, RoundingMode.HALF_UP);
+    }
+    
+    public List<ProductInfo> getCartInfo() {
+        return products.values().stream()
+            .map(product -> new ProductInfo(
+                product.name(),
+                product.price(),
+                product.quantity(),
+                product.discountPercent()
+            ))
+            .collect(Collectors.toList());
+    }
+    
+    public int getProductCount() {
+        return products.size();
+    }
+    
+    public int getTotalItems() {
+        return products.values().stream()
+            .mapToInt(Product::quantity)
+            .sum();
+    }
+    
+    public Optional<Product> getProduct(String name) {
+        return Optional.ofNullable(products.get(name));
+    }
+}
