@@ -1,0 +1,4 @@
+public interface BookRepository {
+    Book getBookById(int id);
+    void updateBook(Book book);
+}
