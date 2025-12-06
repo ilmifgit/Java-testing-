@@ -1,0 +1,4 @@
+public interface NotificationService {
+    void sendSuccessNotification(String studentName, String bookTitle);
+    void sendWarningNotification(String message);
+}
