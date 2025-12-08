@@ -105,7 +105,11 @@ class LibraryServiceTest {
         
         when(studentRepository.getStudentById(studentId)).thenReturn(student);
         when(bookRepository.getBookById(bookId)).thenReturn(book);
-        
+_______________________________________________________________________________
+libraryService.borrowBook(1, 1); это пример для обоих строк передачи 1, в случае первой строки мы как бы говорим mock "если запросят студента с передачей 1, то верни созданного студента" \ аналогично для book. Пример работы внутри
+Student student = studentRepository.getStudentById(1);
+Book book = bookRepository.getBookById(1);
+_______________________________________________________________________________        
         libraryService.borrowBook(studentId, bookId);
         
         assertFalse(book.isAvailable());
